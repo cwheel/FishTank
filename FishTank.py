@@ -58,7 +58,7 @@ for mod in modsDir:
     if mod != ".DS_Store" and ".pyc" not in mod:
         _mod = __import__(mod.replace(".py", ""))
         
-        if getattr(_mod, 'moduleInit', None) is None or getattr(_mod, 'moduleRun', None) is None or getattr(_mod, 'moduleVersion', None) is None or getattr(_mod, 'moduleAuthor', None) is None or getattr(_mod, 'incomingArduinoMessage', None) is None or getattr(_mod, 'moduleDescription', None) is None or getattr(_mod, 'moduleName', None) is None:
+        if getattr(_mod, 'moduleInit', None) is None or getattr(_mod, 'moduleRun', None) is None or getattr(_mod, 'moduleVersion', None) is None or getattr(_mod, 'moduleAuthor', None) is None or getattr(_mod, 'incomingArduinoMessage', None) is None or getattr(_mod, 'moduleDescription', None) is None or getattr(_mod, 'moduleName', None) is None or getattr(_mod, 'stopModule', None) is None:
             print "Error loading module: " + mod + ". The module is not configured correctly."
         else:
             try:
@@ -70,27 +70,28 @@ for mod in modsDir:
             try:
                 _mod.moduleInit(addMetric, getMetric, sendError, sendArduinoMessage, kErrors)
             except:
-                print sys.exc_info()[0]
-                sendError("Init() function failed to execute", kErrors["eCritical"], mod.replace(".py", ""))
+                sendError("Init():" + sys.exc_info()[0], kErrors["eCritical"], mod.replace(".py", ""))
             
             try:
                 modThread = threading.Thread(target=_mod.moduleRun())
                 modThread.start()
             except:
-                print sys.exc_info()[0]
-                sendError("Run() function failed to execute", kErrors["eCritical"], mod.replace(".py", ""))
+                sendError("Run():" + sys.exc_info()[0], kErrors["eCritical"], mod.replace(".py", ""))
             
             mods.append(_mod)
 
 smsThread = threading.Thread(target=checkForIncomingSMS)
 smsThread.start()
+
 #Connect to the Arduino board on a seperate thread
-#arduinoThread = threading.Thread(target=connectToArduino("", 9600))
-#arduinoThread.start()
+arduinoThread = threading.Thread(target=connectToArduino("/dev/tty.usbserial-A6027N04", 9600))
+arduinoThread.start()
 
 while True:
     cmd = raw_input("FishTank$ ")
     if cmd == "exit":
+        for mod in mods:
+            mod.stopModule()
         sys.exit(0)
     elif cmd == "metrics":
         print metrics

@@ -58,3 +58,7 @@ def moduleDescription():
 #Called when a connected Arduino board delivers serial data with to the module
 def incomingArduinoMessage(mssg):
     print "Serial message recived: " + mssg
+
+#Called when the module is stopped
+def stopModule():
+    print "Module stopped"
