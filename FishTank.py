@@ -5,15 +5,19 @@ import serial
 import threading
 import base64
 import imaplib
+import smtplib
 import getpass
 import Queue
 import re
+import time
 
 sys.path.insert(0, "modules/")
 
 mods = []
+smsRecipients = []
 arduino = None
 arduinoDevice = None
+mode = None
 metrics = {}
 errors = {}
 kErrors = {}
@@ -21,10 +25,6 @@ modsDir = os.listdir("modules/")
 mailPass = None
 printQueue = Queue.Queue()
 writeQueue = Queue.Queue()
-
-##TODO##
-#Finish SMS implimentation
-#Fix the log() function
 
 #Send Arduino Message        
 def sendArduinoMessage(mssg):
@@ -59,20 +59,40 @@ def sendError(error, level, mod):
         sendSMS(mod + "." + error, "")
     
 #Sends an SMS to the specified recipiant
-def sendSMS(mssg, recipiant):
-    pass
+def sendSMS(mssg, recipiants):
+    if mode != "--nosms":
+        mailserver = smtplib.SMTP('smtp.gmail.com', 587)
+        mailserver.ehlo()
+        mailserver.starttls()
+        mailserver.login("fishtanksms@gmail.com", mailPass)
+       
+        mailserver.sendmail("fishtanksms@gmail.com", recipiants, mssg)
+        mailserver.quit()
     
 #Reads from the incoming IMAP server
 def checkForIncomingSMS():
-     mailserver = imaplib.IMAP4_SSL("imap.gmail.com", 993)
-     mailserver.login("fishtank@nosedivesoftware.com", mailPass)
-     mailserver.select('INBOX')
-     stat, ids = mailserver.uid('search', None, "ALL")
-     for id in ids[0].split(" "):
-        result, email = mailserver.uid('fetch', id, '(RFC822)')
-        if "saltyfish" in email[0][1]:
-            sender = re.compile("From: .*").search(email[0][1]).group()[0]
-            print sender
+    if mode != "--nosms":
+        while True:
+            mailserver = imaplib.IMAP4_SSL("imap.gmail.com", 993)
+            mailserver.login("fishtanksms@gmail.com", mailPass)
+            mailserver.select('INBOX')
+            stat, ids = mailserver.uid('search', None, "UnSeen")
+            
+            if "['']" not in str(ids):
+                for id in ids[0].split(" "):
+                    result, email = mailserver.uid('fetch', id, '(RFC822)')
+                    if "saltyfish" in email[0][1] or "Saltyfish" in email[0][1]:
+                        sender = re.compile("From:.*").search(email[0][1]).group().replace("From:", "")
+                        
+                        if not sender in smsRecipients:
+                            sendSMS("You've subscribed to the FishTank. To unsubscribe, reply 'stop'.", [sender])
+                            smsRecipients.append(sender)
+                    elif "stop" in email[0][1] or "Stop" in email[0][1]:
+                        sender = re.compile("From:.*").search(email[0][1]).group().replace("From:", "")
+                        sendSMS("You've unsubscribed from the FishTank.", [sender])
+                        smsRecipients.remove(sender)
+                        
+            time.sleep(20)
      
 #Write out any queued messages for Arduino     
 def writeQueueToBoard():
@@ -87,9 +107,17 @@ kErrors["eWarning"] = 0
 kErrors["eStandard"] = 1
 kErrors["eCritical"] = 2
 
+#Set the mode
+
+try:
+    mode = sys.argv[1]
+except:
+    mode = ""
+    
+
 #Get mail information
 
-while mailPass == "" or mailPass == " " or mailPass == None:
+while mailPass == "" or mailPass == " " or mailPass == None and mode != "--nosms":
     mailPass = getpass.getpass("Mail Password:")
 
 #Load all other modules
