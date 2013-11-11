@@ -87,10 +87,13 @@ def checkForIncomingSMS():
                         if not sender in smsRecipients:
                             sendSMS("You've subscribed to the FishTank. To unsubscribe, reply 'stop'.", [sender])
                             smsRecipients.append(sender)
+                            saveRecipients()
+                            
                     elif "stop" in email[0][1] or "Stop" in email[0][1]:
                         sender = re.compile("From:.*").search(email[0][1]).group().replace("From:", "")
                         sendSMS("You've unsubscribed from the FishTank.", [sender])
                         smsRecipients.remove(sender)
+                        saveRecipients()
                         
             time.sleep(360)
      
@@ -101,6 +104,16 @@ def writeQueueToBoard():
         while i < writeQueue.qsize():
             arduino.write(writeQueue.get())
             writeQueue.task_done()
+            
+#Save the SMS recipients list
+def saveRecipients():
+    if not os.path.exists("sms_subscribers"):
+        f = open("sms_subscribers", "a+")
+    else:
+        f = open("sms_subscribers", "w")
+
+    f.writelines(smsRecipients)
+    f.close()
     
 #Configure error levels
 kErrors["eWarning"] = 0
@@ -116,9 +129,16 @@ except:
     
 
 #Get mail information
-
 while mailPass == "" or mailPass == " " or mailPass == None and mode != "--nosms":
     mailPass = getpass.getpass("Mail Password:")
+    
+#Load subscribers
+
+if os.path.exists("sms_subscribers"):
+    f = open("sms_subscribers", "r")
+    for subscriber in f:
+        if subscriber != "" or subscriber != " ":
+            smsRecipients.append(subscriber)
 
 #Load all other modules
 for mod in modsDir:
