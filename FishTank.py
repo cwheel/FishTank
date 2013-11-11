@@ -92,7 +92,7 @@ def checkForIncomingSMS():
                         sendSMS("You've unsubscribed from the FishTank.", [sender])
                         smsRecipients.remove(sender)
                         
-            time.sleep(20)
+            time.sleep(360)
      
 #Write out any queued messages for Arduino     
 def writeQueueToBoard():
