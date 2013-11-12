@@ -74,7 +74,7 @@ def sendSMS(mssg, recipiants):
 def checkForIncomingSMS():
     if mode != "--nosms":
         while True:
-            mailserver = imaplib.IMAP4_SSL("imap.gmail.com", 993)
+            mailserver = imaplib.IMAP4("imap.gmail.com", 993)
             mailserver.login("fishtanksms@gmail.com", mailPass)
             mailserver.select('INBOX')
             stat, ids = mailserver.uid('search', None, "UnSeen")
@@ -109,7 +109,7 @@ def checkForIncomingSMS():
                     else:
                         if sender in smsRecipients:
                             for cmd in smsCmds:
-                                if cmd in email[0][1]:
+                                if cmd in email[0][1] or cmd.title() in email[0][1] :
                                     mssg = smsCmds[cmd]()
                                     if mssg != None:
                                         sendSMS(mssg, [sender])
