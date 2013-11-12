@@ -19,6 +19,7 @@ arduino = None
 arduinoDevice = None
 mode = None
 metrics = {}
+smsCmds = {}
 errors = {}
 kErrors = {}
 modsDir = os.listdir("modules/")
@@ -56,7 +57,7 @@ def log(mod, mssg):
 def sendError(error, level, mod):
     errors[mod + "." + error] = level
     if level == kErrors["eCritical"]:
-        sendSMS(mod + "." + error, "")
+        sendSMS(mod + "." + error, )
     
 #Sends an SMS to the specified recipiant
 def sendSMS(mssg, recipiants):
@@ -81,22 +82,45 @@ def checkForIncomingSMS():
             if "['']" not in str(ids):
                 for id in ids[0].split(" "):
                     result, email = mailserver.uid('fetch', id, '(RFC822)')
+                    sender = re.compile("From:.*").search(email[0][1]).group().replace("From:", "")
+                    
                     if "saltyfish" in email[0][1] or "Saltyfish" in email[0][1]:
-                        sender = re.compile("From:.*").search(email[0][1]).group().replace("From:", "")
-                        
                         if not sender in smsRecipients:
-                            sendSMS("You've subscribed to the FishTank. To unsubscribe, reply 'stop'.", [sender])
+                            sendSMS("You've subscribed to the FishTank. To unsubscribe, reply 'remove'.", [sender])
                             smsRecipients.append(sender)
                             saveRecipients()
                             
-                    elif "stop" in email[0][1] or "Stop" in email[0][1]:
-                        sender = re.compile("From:.*").search(email[0][1]).group().replace("From:", "")
+                    elif "remove" in email[0][1] or "Remove" in email[0][1]:
                         sendSMS("You've unsubscribed from the FishTank.", [sender])
                         smsRecipients.remove(sender)
                         saveRecipients()
                         
-            time.sleep(360)
-     
+                    elif "modules" in email[0][1] or "Modules" in email[0][1] or "mods" in email[0][1] or "Mods" in email[0][1]:
+                        if sender in smsRecipients:
+                            sendSMS("Active Modules: \n" + mods, [sender])
+                            
+                    elif "errors" in email[0][1] or "Errors" in email[0][1]:
+                        if sender in smsRecipients:
+                            sendSMS("Reported Errors: \n" + errors, [sender])
+                            
+                    elif "metrics" in email[0][1] or "Metrics" in email[0][1]:
+                        if sender in smsRecipients:
+                            sendSMS("Metrics: \n" + metrics, [sender])
+                    else:
+                        if sender in smsRecipients:
+                            for cmd in smsCmds:
+                                if cmd in email[0][1]:
+                                    mssg = smsCmds[cmd]()
+                                    if mssg != None:
+                                        sendSMS(mssg, [sender])
+                            
+                                            
+            time.sleep(20)
+
+#Registers an SMS command
+def registerSMSCommand(cmd, func):
+         smsCmds[cmd] = func
+         
 #Write out any queued messages for Arduino     
 def writeQueueToBoard():
     while True:
@@ -155,12 +179,12 @@ for mod in modsDir:
                 sendError("Access on Version or Author failure", kErrors["eStandard"], mod.replace(".py", ""))
             
             try:
-                _mod.moduleInit(addMetric, getMetric, sendError, sendArduinoMessage, log, kErrors)
+                _mod.moduleInit(addMetric, getMetric, sendError, sendArduinoMessage, log, registerSMSCommand, kErrors)
             except:
                 sendError("Init():" + str(sys.exc_info()[0]), kErrors["eCritical"], mod.replace(".py", ""))
             
             try:
-                thread.start_new_thread(_mod.moduleRun, (addMetric, getMetric, sendError, sendArduinoMessage, log, kErrors))
+                thread.start_new_thread(_mod.moduleRun, (addMetric, getMetric, sendError, sendArduinoMessage, log, registerSMSCommand, kErrors))
             except:
                 sendError("Run():" + str(sys.exc_info()[0]), kErrors["eCritical"], mod.replace(".py", ""))
             
@@ -175,7 +199,7 @@ while True:
     cmd = raw_input("FishTank$ ")
     if cmd == "exit":
         for mod in mods:
-            mod.stopModule()
+            mod.stopModule(log)
         sys.exit(0)
     elif cmd == "metrics":
         print metrics
@@ -195,7 +219,7 @@ while True:
     elif "stop" in cmd:
         for mod in mods:
             if mod.moduleName() == cmd.replace("stop ", ""):
-                mod.stopModule()
+                mod.stopModule(log)
     elif cmd == "help":
         print "FishTank Help"
         print "============="

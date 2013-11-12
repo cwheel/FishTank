@@ -23,10 +23,11 @@ sendError = None
 sendArduinoMessage = None
 error = None
 log = None
+registerSMSCommand = None
 incomingQueue = Queue.Queue()
 
 #Initialize the module, must not cause a lock
-def moduleInit(am, gm, se, sam, lg, errs): 
+def moduleInit(am, gm, se, sam, lg, rc, errs): 
     #Do not modify below#
     addMetric = am
     getMetric = gm
@@ -34,12 +35,14 @@ def moduleInit(am, gm, se, sam, lg, errs):
     sendArduinoMessage = sam
     error = errs
     log = lg
+    registerSMSCommand = rc
     #Do not modify above#
     
     log(moduleName(), "Test init completed")
+    registerSMSCommand("yum", eatPie)
 
 #Run the module, usually a loop  
-def moduleRun(am, gm, se, sam, lg, errs):
+def moduleRun(am, gm, se, sam, lg, rc, errs):
     #Do not modify below#
     addMetric = am
     getMetric = gm
@@ -47,6 +50,7 @@ def moduleRun(am, gm, se, sam, lg, errs):
     sendArduinoMessage = sam
     error = errs
     log = lg
+    registerSMSCommand = rc
     #Do not modify above#
     
     log(moduleName(), "Test run started")
@@ -72,5 +76,8 @@ def moduleDescription():
     return "A test module"
 
 #Called when the module is stopped
-def stopModule():
-    pass
+def stopModule(log):
+    log(moduleName(), "Module Stopped")
+    
+def eatPie():
+    return "Eat pie!"
