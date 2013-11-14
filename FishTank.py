@@ -24,23 +24,26 @@ errors = {}
 kErrors = {}
 modsDir = os.listdir("modules/")
 mailPass = None
+exitInProcess = False
 printQueue = Queue.Queue()
 writeQueue = Queue.Queue()
 
 #Send Arduino Message        
-def sendArduinoMessage(mssg):
-    writeQueue.put(base64.b64encode(mssg))
+def sendArduinoMessage(module, mssg):
+    writeQueue.put(base64.b64encode("(" + module + "):" + mssg))
     
 #Connect to an Arduino board    
-def connectToArduino(dev, rate):
-    arduino = serial.Serial(dev, rate)
-    
-    while True:
-        strIn = base64.b64decode(arduino.readline())
-        for mod in mods:
-            if strIn.beginswith("(" + mod.moduleName() + ")"):
-                mod.incomingQueue.put(strIn.replace("(" + mod.moduleName() + ")", ""))
-
+def connectToArduino():
+    while True and not exitInProcess:
+        try:
+            strIn = base64.b64decode(arduino.readline())
+            
+            for mod in mods:
+                if strIn.startswith("(" + mod.moduleName() + ")"):
+                    mod.incomingQueue.put(strIn.replace("(" + mod.moduleName() + "):", ""))
+        except:
+            log("FishTank Core", str(sys.exc_info()[0]))
+            
 #Add a metric                
 def addMetric(key, value, mod):
     metrics[mod + "." + key] = value;
@@ -74,7 +77,7 @@ def sendSMS(mssg, recipiants):
 def checkForIncomingSMS():
     if mode != "--nosms":
         while True:
-            mailserver = imaplib.IMAP4("imap.gmail.com", 993)
+            mailserver = imaplib.IMAP4_SSL("imap.gmail.com", 993)
             mailserver.login("fishtanksms@gmail.com", mailPass)
             mailserver.select('INBOX')
             stat, ids = mailserver.uid('search', None, "UnSeen")
@@ -123,11 +126,14 @@ def registerSMSCommand(cmd, func):
          
 #Write out any queued messages for Arduino     
 def writeQueueToBoard():
-    while True:
-        i = 0
-        while i < writeQueue.qsize():
-            arduino.write(writeQueue.get())
-            writeQueue.task_done()
+    try:
+        while True:
+            i = 0
+            while i < writeQueue.qsize():
+                arduino.write(writeQueue.get())
+                writeQueue.task_done()
+    except:
+        log("FishTank Core", str(sys.exc_info()[0]))
             
 #Save the SMS recipients list
 def saveRecipients():
@@ -150,11 +156,10 @@ try:
     mode = sys.argv[1]
 except:
     mode = ""
-    
 
 #Get mail information
 while mailPass == "" or mailPass == " " or mailPass == None and mode != "--nosms":
-    mailPass = getpass.getpass("Mail Password:")
+    mailPass = getpass.getpass("Mail (SMS) Password:")
     
 #Load subscribers
 
@@ -193,13 +198,20 @@ for mod in modsDir:
 thread.start_new_thread(checkForIncomingSMS, ())
 thread.start_new_thread(writeQueueToBoard, ())
 
+arduino = serial.Serial("/dev/tty.usbserial-A6027N04", 9600)
+thread.start_new_thread(connectToArduino, ())
+sendArduinoMessage("hola", "hi")
+
 #Run loop for CLI
 print "\n"
 while True:
     cmd = raw_input("FishTank$ ")
     if cmd == "exit":
+        exitInProcess =  True
         for mod in mods:
             mod.stopModule(log)
+            
+        arduino.close()
         sys.exit(0)
     elif cmd == "metrics":
         print metrics
@@ -215,7 +227,8 @@ while True:
             print mod.moduleName()
     elif "connect" in cmd:
         if "arduino" in cmd and not arduinoDevice == None:
-            thread.start_new_thread(connectToArduino, (arduinoDevice, 9600))
+            arduino = serial.Serial(arduinoDevice, 9600)
+            thread.start_new_thread(connectToArduino, ())
     elif "stop" in cmd:
         for mod in mods:
             if mod.moduleName() == cmd.replace("stop ", ""):
