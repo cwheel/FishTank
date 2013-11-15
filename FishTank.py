@@ -10,6 +10,7 @@ import getpass
 import Queue
 import re
 import time
+import BaseHTTPServer
 
 sys.path.insert(0, "modules/")
 
@@ -24,6 +25,7 @@ errors = {}
 kErrors = {}
 modsDir = os.listdir("modules/")
 mailPass = None
+webUI = None;
 exitInProcess = False
 printQueue = Queue.Queue()
 writeQueue = Queue.Queue()
@@ -60,7 +62,10 @@ def log(mod, mssg):
 def sendError(error, level, mod):
     errors[mod + "." + error] = level
     if level == kErrors["eCritical"]:
-        sendSMS(mod + "." + error, )
+        if mode != "--nosms":
+            for recip in smsRecipients:
+                sendSMS(mod + "." + error, recip)
+            
     
 #Sends an SMS to the specified recipiant
 def sendSMS(mssg, recipiants):
@@ -118,7 +123,7 @@ def checkForIncomingSMS():
                                         sendSMS(mssg, [sender])
                             
                                             
-            time.sleep(20)
+            time.sleep(360)
 
 #Registers an SMS command
 def registerSMSCommand(cmd, func):
@@ -144,7 +149,88 @@ def saveRecipients():
 
     f.writelines(smsRecipients)
     f.close()
+
+def runWebserver():
+    webUI.serve_forever()
+
+class WebUIHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     
+    def do_GET(self):
+        try:
+            if "./" not in self.path:
+                if self.path.endswith('.html'):
+                    f = open("webui/" + self.path)
+                    self.send_response(200)
+                    self.send_header('Content-type', "text/html")
+                    self.end_headers()
+                    
+                    file = f.read()
+                    
+                    if "errors.html" in self.path:
+                        for err in errors.keys():
+                            level = None
+                            if errors[err] == kErrors["eWarning"]:
+                                level = "Warning"
+                            elif errors[err] == kErrors["eStandard"]:
+                                level = "Standard"
+                            elif errors[err] == kErrors["eCritical"]: 
+                                level = "<b>Critical</b>"
+                            
+                            file = file + "\n<tr><td>" + err.split(".")[0] +"</td><td>" + level + "</td><td>" + err.split(".")[1] + "</tr>"
+                        
+                        
+                    elif "metrics.html" in self.path:
+                        for metric in metrics.keys():
+                            file = file + "\n<tr><td>" + metric.split(".")[0] +"</td><td>" + metric.split(".")[1] + "</td><td>" + metrics[metric] + "</tr>"
+                        
+                    self.wfile.write(file)
+                    f.close()
+                    return
+                    
+                elif self.path.endswith('.css'):
+                    f = open("webui/" + self.path)
+                    self.send_response(200)
+                    self.send_header('Content-type', "text/css")
+                    self.end_headers()
+                    self.wfile.write(f.read())
+                    f.close()
+                    return
+                    
+                elif self.path.endswith('.png'):
+                    f = open("webui/" + self.path)
+                    self.send_response(200)
+                    self.send_header('Content-type', "image/png")
+                    self.end_headers()
+                    self.wfile.write(f.read())
+                    f.close()
+                    return
+                    
+                elif "." not in self.path:
+                    f = open("webui/webui.html")
+                    self.send_response(200)
+                    self.send_header('Content-type', "text/html")
+                    self.end_headers()
+                    
+                    file = f.read()
+                    
+                    for mod in mods:
+                        file = file + "\n<tr><td>" + mod.moduleName() +"</td><td>" + mod.moduleVersion() + "</td><td>" + mod.moduleAuthor() + "</td><td>" + mod.moduleDescription() +"</td></tr>"
+                    
+                    self.wfile.write(file)
+                    f.close()
+                    return
+                    
+                else:
+                    self.send_error(404, 'File not found')
+            else:
+                self.send_error(403, 'Forbidden')
+            
+        except IOError:
+            self.send_error(404, 'File not found')
+            
+    def log_message(self, format, *args):
+            return
+            
 #Configure error levels
 kErrors["eWarning"] = 0
 kErrors["eStandard"] = 1
@@ -194,13 +280,15 @@ for mod in modsDir:
                 sendError("Run():" + str(sys.exc_info()[0]), kErrors["eCritical"], mod.replace(".py", ""))
             
             mods.append(_mod)
-
+            
+webUI = BaseHTTPServer.HTTPServer(('', 8080), WebUIHandler)
 thread.start_new_thread(checkForIncomingSMS, ())
 thread.start_new_thread(writeQueueToBoard, ())
+thread.start_new_thread(runWebserver, ())
 
-arduino = serial.Serial("/dev/tty.usbserial-A6027N04", 9600)
+#arduino = serial.Serial("/dev/tty.usbserial-A6027N04", 9600)
 thread.start_new_thread(connectToArduino, ())
-sendArduinoMessage("hola", "hi")
+#sendArduinoMessage("hola", "hi")
 
 #Run loop for CLI
 print "\n"
@@ -208,10 +296,15 @@ while True:
     cmd = raw_input("FishTank$ ")
     if cmd == "exit":
         exitInProcess =  True
+        webUI.socket.close()
+        
         for mod in mods:
             mod.stopModule(log)
-            
-        arduino.close()
+        
+        try:    
+            arduino.close()
+        except:
+            print "Could not disconnect Arduino. Perhaps one was never connected..."
         sys.exit(0)
     elif cmd == "metrics":
         print metrics

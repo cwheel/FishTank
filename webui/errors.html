@@ -1,0 +1,27 @@
+
+<head>
+<link rel="stylesheet" type="text/css" href="manage.css">
+</head>
+
+<script type="text/javascript">
+	window.onload=function(){
+	var tfrow = document.getElementById('tfhover').rows.length;
+	var tbRow=[];
+	for (var i=1;i<tfrow;i++) {
+		tbRow[i]=document.getElementById('tfhover').rows[i];
+		tbRow[i].onmouseover = function(){
+		  this.style.backgroundColor = '#ffffff';
+		};
+		tbRow[i].onmouseout = function() {
+		  this.style.backgroundColor = '#d4e3e5';
+		};
+	}
+};
+</script>
+
+<body>
+
+<h1>FishTank Dashboard</h1> <div id="menu">
+<a href="/">Modules</a> | <a href="metrics.html"> Metrics&nbsp;</a> | <a href="errors.html"> Reported Errors&nbsp;</a></div><br><br>
+<table id="tfhover" class="tftable" border="1">
+<tr><th>Module</th><th>Error Level</th><th>Error</th></tr>
