@@ -32,14 +32,14 @@ writeQueue = Queue.Queue()
 
 #Send Arduino Message        
 def sendArduinoMessage(module, mssg):
-    writeQueue.put(base64.b64encode("(" + module + "):" + mssg))
+    writeQueue.put("(" + module + "):" + mssg + "\n")
     
 #Connect to an Arduino board    
 def connectToArduino():
-    while True and not exitInProcess:
+    while True and not exitInProcess and arduino != None:
         try:
-            strIn = base64.b64decode(arduino.readline())
-            
+            strIn = arduino.readline()
+                    
             for mod in mods:
                 if strIn.startswith("(" + mod.moduleName() + ")"):
                     mod.incomingQueue.put(strIn.replace("(" + mod.moduleName() + "):", ""))
@@ -64,7 +64,7 @@ def sendError(error, level, mod):
     if level == kErrors["eCritical"]:
         if mode != "--nosms":
             for recip in smsRecipients:
-                sendSMS(mod + "." + error, recip)
+                sendSMS(mod + "." + error, [recip])
             
     
 #Sends an SMS to the specified recipiant
@@ -151,7 +151,11 @@ def saveRecipients():
     f.close()
 
 def runWebserver():
-    webUI.serve_forever()
+    try:
+        webUI.serve_forever()
+    except:
+        print "Stopping webserver..."
+        
 
 class WebUIHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     
@@ -280,15 +284,15 @@ for mod in modsDir:
                 sendError("Run():" + str(sys.exc_info()[0]), kErrors["eCritical"], mod.replace(".py", ""))
             
             mods.append(_mod)
-            
+
+time.sleep(2)
+thread.start_new_thread(connectToArduino, ())
+
+#Start threads
+
 webUI = BaseHTTPServer.HTTPServer(('', 8080), WebUIHandler)
 thread.start_new_thread(checkForIncomingSMS, ())
-thread.start_new_thread(writeQueueToBoard, ())
 thread.start_new_thread(runWebserver, ())
-
-#arduino = serial.Serial("/dev/tty.usbserial-A6027N04", 9600)
-thread.start_new_thread(connectToArduino, ())
-#sendArduinoMessage("hola", "hi")
 
 #Run loop for CLI
 print "\n"
@@ -321,7 +325,12 @@ while True:
     elif "connect" in cmd:
         if "arduino" in cmd and not arduinoDevice == None:
             arduino = serial.Serial(arduinoDevice, 9600)
+            arduino.setDTR(level=False)
+            time.sleep(2)
+            
             thread.start_new_thread(connectToArduino, ())
+            time.sleep(2)
+            thread.start_new_thread(writeQueueToBoard, ())
     elif "stop" in cmd:
         for mod in mods:
             if mod.moduleName() == cmd.replace("stop ", ""):

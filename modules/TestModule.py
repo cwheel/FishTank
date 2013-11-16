@@ -68,12 +68,13 @@ def moduleRun(am, gm, se, sam, lg, rc, errs):
         i = 0
         while i < incomingQueue.qsize():
            mssg = incomingQueue.get()
-           if (mssg == "hi"):
-               log(moduleName(), "Yay the arduino says hi!")
+           log(moduleName(), "Arduino said: " + mssg)
            incomingQueue.task_done()
        
+        sendArduinoMessage(moduleName(), "turnon")
         time.sleep(10)
-        sendArduinoMessage(moduleName(), "sayHiArduino")
+        sendArduinoMessage(moduleName(), "turnoff")
+        time.sleep(10)
        
     
 #Returns the author of the module    
@@ -94,7 +95,6 @@ def moduleDescription():
 
 #Called when the module is stopped
 def stopModule(log):
-    sendArduinoMessage(moduleName(), "sayByeToArduino")
     log(moduleName(), "Module Stopped")
     
 def eatPie():
