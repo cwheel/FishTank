@@ -64,7 +64,7 @@ def sendError(error, level, mod):
     if level == kErrors["eCritical"]:
         if mode != "--nosms":
             for recip in smsRecipients:
-                sendSMS(mod + "." + error, [recip])
+                sendSMS(mod + " reported the error: " + error, [recip])
             
     
 #Sends an SMS to the specified recipiant
@@ -82,7 +82,7 @@ def sendSMS(mssg, recipiants):
 def checkForIncomingSMS():
     if mode != "--nosms":
         while True:
-            mailserver = imaplib.IMAP4_SSL("imap.gmail.com", 993)
+            mailserver = imaplib.IMAP4("imap.gmail.com", 993)
             mailserver.login("fishtanksms@gmail.com", mailPass)
             mailserver.select('INBOX')
             stat, ids = mailserver.uid('search', None, "UnSeen")
