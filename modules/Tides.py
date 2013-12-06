@@ -61,16 +61,19 @@ def moduleRun(am, gm, se, sam, lg, rc, errs):
            mssg = incomingQueue.get()
            incomingQueue.task_done()
            
+        log(moduleName(), "Fetching Tides for Nairai Island, Fiji...")
         tide = nextTide("1799")
-            
+        
         if tide[0] == "Low":
             sendArduinoMessage(moduleName(), "tideslow")
             addMetric("Tide", "Low", moduleName())
+            log(moduleName(), "Setting tide to low...")
         elif tide[0] == "High":
             sendArduinoMessage(moduleName(), "tideshigh")
             addMetric("Tide", "High", moduleName())
+            log(moduleName(), "Setting tide to high...")
         
-        log(moduleName(), "Sleeping for " + str(ts2s(tide[1]) + 80) + " seconds until next tide.")    
+        log(moduleName(), "Sleeping for " + str(ts2s(tide[1]) + 80) + " seconds until next tide")    
         time.sleep(ts2s(tide[1]) + 80)
        
         
