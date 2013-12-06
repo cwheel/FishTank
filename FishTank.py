@@ -48,6 +48,11 @@ def connectToArduino():
             
 #Add a metric                
 def addMetric(key, value, mod):
+    try:
+        metrics.pop(mod + "." + key, None)
+    except:
+        pass
+        
     metrics[mod + "." + key] = value;
 
 #Get a metric    
