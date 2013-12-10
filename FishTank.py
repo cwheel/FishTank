@@ -239,6 +239,33 @@ class WebUIHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             
     def log_message(self, format, *args):
             return
+
+def loadModules():
+    for mod in modsDir:
+        if mod != ".DS_Store" and ".pyc" not in mod:
+            _mod = __import__(mod.replace(".py", ""))
+            
+            if getattr(_mod, 'moduleInit', None) is None or getattr(_mod, 'moduleRun', None) is None or getattr(_mod, 'moduleVersion', None) is None or getattr(_mod, 'moduleAuthor', None) is None or getattr(_mod, 'moduleDescription', None) is None or getattr(_mod, 'moduleName', None) is None or getattr(_mod, 'stopModule', None) is None:
+                print "Error loading module: " + mod + ". The module is not configured correctly."
+            else:
+                try:
+                    print "Loaded " + mod.replace(".py", "")  + ", version " + _mod.moduleVersion() + " by " +  _mod.moduleAuthor()
+                except:
+                    print sys.exc_info()[0]
+                    sendError("Access on Version or Author failure", kErrors["eStandard"], mod.replace(".py", ""))
+                
+                try:
+                    _mod.moduleInit(addMetric, getMetric, sendError, sendArduinoMessage, log, registerSMSCommand, kErrors)
+                except:
+                    sendError("Init():" + str(sys.exc_info()[0]), kErrors["eCritical"], mod.replace(".py", ""))
+                
+                try:
+                    thread.start_new_thread(_mod.moduleRun, (addMetric, getMetric, sendError, sendArduinoMessage, log, registerSMSCommand, kErrors))
+                except:
+                    sendError("Run():" + str(sys.exc_info()[0]), kErrors["eCritical"], mod.replace(".py", ""))
+                
+                mods.append(_mod)
+    
             
 #Configure error levels
 kErrors["eWarning"] = 0
@@ -265,30 +292,7 @@ if os.path.exists("sms_subscribers"):
             smsRecipients.append(subscriber)
 
 #Load all other modules
-for mod in modsDir:
-    if mod != ".DS_Store" and ".pyc" not in mod:
-        _mod = __import__(mod.replace(".py", ""))
-        
-        if getattr(_mod, 'moduleInit', None) is None or getattr(_mod, 'moduleRun', None) is None or getattr(_mod, 'moduleVersion', None) is None or getattr(_mod, 'moduleAuthor', None) is None or getattr(_mod, 'moduleDescription', None) is None or getattr(_mod, 'moduleName', None) is None or getattr(_mod, 'stopModule', None) is None:
-            print "Error loading module: " + mod + ". The module is not configured correctly."
-        else:
-            try:
-                print "Loaded " + mod.replace(".py", "")  + ", version " + _mod.moduleVersion() + " by " +  _mod.moduleAuthor()
-            except:
-                print sys.exc_info()[0]
-                sendError("Access on Version or Author failure", kErrors["eStandard"], mod.replace(".py", ""))
-            
-            try:
-                _mod.moduleInit(addMetric, getMetric, sendError, sendArduinoMessage, log, registerSMSCommand, kErrors)
-            except:
-                sendError("Init():" + str(sys.exc_info()[0]), kErrors["eCritical"], mod.replace(".py", ""))
-            
-            try:
-                thread.start_new_thread(_mod.moduleRun, (addMetric, getMetric, sendError, sendArduinoMessage, log, registerSMSCommand, kErrors))
-            except:
-                sendError("Run():" + str(sys.exc_info()[0]), kErrors["eCritical"], mod.replace(".py", ""))
-            
-            mods.append(_mod)
+loadModules()
 
 time.sleep(2)
 thread.start_new_thread(connectToArduino, ())
@@ -366,5 +370,18 @@ while True:
         while i < printQueue.qsize():
             print printQueue.get()
             printQueue.task_done()
+    elif cmd == "reload":
+        print '\033[1m' + "Reloading modules..." + '\033[0m'
+        print '\033[1m'+ "Stopping modules...." + '\033[0m'
+        
+        for mod in mods:
+            mod.stopModule(log)
+            
+        print '\033[1m' + "Unloading modules..." + '\033[0m'
+        mods = None;
+        mods = []
+        
+        loadModules()
+        print '\033[1m' + "Reload complete!\n" + '\033[0m'
     else:
        print "Unrecognized command"

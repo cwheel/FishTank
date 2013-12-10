@@ -116,7 +116,6 @@ def moduleDescription():
 
 #Called when the module is stopped
 def stopModule(log):
-    sendArduinoMessage(moduleName(), "sayByeToArduino")
     log(moduleName(), "Module Stopped")
     
 def eatPie():
